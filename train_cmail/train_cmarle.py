@@ -452,6 +452,3 @@ if __name__ == "__main__":
     final_collisions = df['collision'].sum()
     print(f"Success Rate: {final_success_rate:.2f}% over {len(df)} episodes")
     print(f"Total collisions: {final_collisions}")
-    
-    # Print last 10 lines of the results
-    print(df.tail(10))
