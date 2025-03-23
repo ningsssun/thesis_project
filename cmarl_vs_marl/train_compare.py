@@ -307,22 +307,22 @@ class MARLAgent(BaseQLearningAgent):
         super().train_step(use_constraints=False)
 
 # 6. Training function for both algorithms
-def train_agents(num_episodes=300, n_agents=2, grid_size=(10,10), 
+def train_agents(num_episodes=200, n_agents=2, grid_size=(10,10), 
                 log_dir="results", agent_class=CMARLAgent, seed=42):
-    # Set seeds for reproducibility
+    # Set seeds
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
-    
+
     # Initialize environment and agents
     env = GridWorldEnv(grid_size=grid_size, n_agents=n_agents, max_steps=100)
     state_dim = env.width * env.height + 4
     agents = [agent_class(state_dim=state_dim) for _ in range(n_agents)]
-    
+
     # Create log directory
     os.makedirs(log_dir, exist_ok=True)
-    
-    # Training metrics storage
+
+    # Training metrics
     metrics = {
         'episode': [],
         'total_reward': [],
@@ -330,7 +330,7 @@ def train_agents(num_episodes=300, n_agents=2, grid_size=(10,10),
         'success': [],
         'steps': []
     }
-    
+
     # Training loop
     for ep in range(num_episodes):
         states = env.reset()
@@ -338,22 +338,52 @@ def train_agents(num_episodes=300, n_agents=2, grid_size=(10,10),
         ep_reward = np.zeros(n_agents)
         collision_happened = False
         step_count = 0
-        
+
         while not done:
-            # ... (Keep the same training loop logic from previous code) ...
+            # Select actions
+            actions = []
+            for i in range(n_agents):
+                valid_acts = agents[i].get_valid_actions(env, i)
+                action = agents[i].select_action(states[i], valid_acts)
+                actions.append(action)
+
+            # Step environment
+            next_states, rewards, done, _ = env.step(actions)
+
+            # Check collision termination
+            if done and any(r <= -100 for r in rewards):
+                collision_happened = True
+
+            # Store experiences
+            for i in range(n_agents):
+                valid_next_acts = agents[i].get_valid_actions(env, i) if not done else []
+                agents[i].store_transition(
+                    states[i], actions[i], rewards[i], next_states[i], done, valid_next_acts
+                )
+                ep_reward[i] += rewards[i]
+
+            # Prepare for next step
+            states = next_states
             step_count += 1
-        
-        # Store metrics
+
+            # Train agents
+            for agent in agents:
+                agent.train_step()
+
+        # Calculate success
+        success = all(pos == goal for pos, goal in zip(env.agent_positions, env.goals))
+
+        # Log metrics
         metrics['episode'].append(ep)
         metrics['total_reward'].append(np.sum(ep_reward))
         metrics['collision'].append(1 if collision_happened else 0)
         metrics['success'].append(1 if success else 0)
         metrics['steps'].append(step_count)
-        
-        # Save periodic checkpoints
-        if (ep % 50 == 0) or (ep == num_episodes-1):
-            pd.DataFrame(metrics).to_csv(os.path.join(log_dir, f'progress.csv'), index=False)
-    
+
+        # Save progress
+        if ep % 50 == 0 or ep == num_episodes - 1:
+            pd.DataFrame(metrics).to_csv(os.path.join(log_dir, 'progress.csv'), index=False)
+
     # Save final results
     pd.DataFrame(metrics).to_csv(os.path.join(log_dir, 'final_results.csv'), index=False)
     return agents
@@ -366,9 +396,9 @@ def run_experiments():
     for algo_name, algo_class in algorithms.items():
         for seed in seeds:
             print(f"Training {algo_name} with seed {seed}")
-            log_dir = f"results/{algo_name}_seed_{seed}"
+            log_dir = f"cmarl_vs_marl/results/{algo_name}_seed_{seed}"
             train_agents(
-                num_episodes=300,
+                num_episodes=200,
                 n_agents=2,
                 grid_size=(10,10),
                 log_dir=log_dir,
