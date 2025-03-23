@@ -240,12 +240,12 @@ class ConstrainedQLearningAgent:
         
         batch = random.sample(self.buffer, self.batch_size)
         states, actions, rewards, states_next, dones, valid_next_acts = zip(*batch)
-        
-        states_t = torch.FloatTensor(states)
-        actions_t = torch.LongTensor(actions).unsqueeze(1)
-        rewards_t = torch.FloatTensor(rewards).unsqueeze(1)
-        next_states_t = torch.FloatTensor(states_next)
-        dones_t = torch.FloatTensor(dones).unsqueeze(1)
+
+        states_t = torch.FloatTensor(np.array(states))
+        actions_t = torch.LongTensor(np.array(actions)).unsqueeze(1)
+        rewards_t = torch.FloatTensor(np.array(rewards)).unsqueeze(1)
+        next_states_t = torch.FloatTensor(np.array(states_next))
+        dones_t = torch.FloatTensor(np.array(dones)).unsqueeze(1)
         
         # Current Q
         qvals = self.q_network(states_t)
@@ -291,7 +291,7 @@ class ConstrainedQLearningAgent:
         Returns the set of valid actions for the agent at agent_index
         """
         all_acts = [0, 1, 2, 3, 4]  # All possible actions
-        valid_acts = []
+        valid_acts = []  # Initialize as an empty list
 
         # Get the agent's current position
         x, y = env.agent_positions[agent_index]
@@ -316,10 +316,14 @@ class ConstrainedQLearningAgent:
                 (new_x, new_y) not in env.agent_positions):  # Not occupied by another agent
                 valid_acts.append(action)
 
+        # If no valid actions, default to no-op (action 4)
+        if len(valid_acts) == 0:
+            valid_acts = [4]
+
         return valid_acts
 
 # 4. Training loop
-def train_CMARL(num_episodes=2000, n_agents=2, grid_size=(10,10), log_dir="logs"):
+def train_CMARL(num_episodes=200, n_agents=2, grid_size=(10,10), log_dir="training_logs"):
     # Create log directory if it doesn't exist
     import os
     os.makedirs(log_dir, exist_ok=True)
@@ -419,18 +423,28 @@ def train_CMARL(num_episodes=2000, n_agents=2, grid_size=(10,10), log_dir="logs"
     
     return agents, results_df, training_time
 
-# 5. Run a simple experiment and print results
+# 5. Run experiments and print results
 if __name__ == "__main__":
-    SEED = 42
-    random.seed(SEED)
-    np.random.seed(SEED)
-    torch.manual_seed(SEED)
-    
-    # Specify the log directory
-    log_directory = "training_logs"
-    
-    # Run training
-    agents, df, ttime = train_CMARL(num_episodes=200, n_agents=2, grid_size=(10,10), log_dir=log_directory)
+    seeds = [42, 43]
+    lr_values = [1e-3, 5e-4]
+    gamma_values = [0.90, 0.95]
+
+    for lr in lr_values:
+        for gamma in gamma_values:
+            for seed in seeds:
+                random.seed(seed)
+                np.random.seed(seed)
+                torch.manual_seed(seed)
+
+                log_subdir = f"training_logs/lr_{lr}_g_{gamma}_seed_{seed}"
+                
+                agents, df, ttime = train_CMARL(
+                    num_episodes=200, 
+                    n_agents=2, 
+                    grid_size=(10,10), 
+                    log_dir=log_subdir
+                )
+                print(f"Done with lr={lr}, gamma={gamma}, seed={seed}")
     
     # Print final stats
     print(f"Finished training. Elapsed time: {ttime:.2f}s")

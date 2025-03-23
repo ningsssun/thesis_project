@@ -1,0 +1,8 @@
+Training Metadata
+=================
+Number of Episodes: 200
+Number of Agents: 2
+Grid Size: (10, 10)
+Training Time: 68.23 seconds
+Final Success Rate: 18.00%
+Total Collisions: 26
